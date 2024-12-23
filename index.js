@@ -3,15 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-
 const { MongoClient, ServerApiVersion } = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors({
-  origin : ['http://localhost:5173'],
-  credentials:true
+  origin: 'http://localhost:5173',
+  credentials: true
 }));
 app.use(express.json());
 app.use(cookieParser());
@@ -28,37 +27,33 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    //await client.connect();
     console.log("Connected to MongoDB!");
 
     const database = client.db("JobPortal");
     const userCollection = database.collection("users");
 
-    app.post('/jwt',(req,res) =>
-    {
-      const user =req.body;
-      const token =jwt.sign(user,process.env.JWT_TOKEN,{expiresIn:'180h'});
+    app.post('/jwt', (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.JWT_TOKEN, { expiresIn: '180h' });
 
-      res.cookie('token',token,{
-        httpOnly:true,
-        secure:false
-      })
-      .send({success:true})
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: false
+      }).send({ success: true });
+    });
 
-    })
     app.post('/logout', (req, res) => {
       res.clearCookie('token', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', 
-        
+        secure: process.env.NODE_ENV === 'production',
       });
-    
+
       res.status(200).json({ success: true, message: 'Logged out successfully' });
     });
-    
 
-    
     app.post('/users', async (req, res) => {
+      console.log("Received request body:", req.body);
       const { name, email, password, photoURL } = req.body;
 
       if (!name || !email || !password || !photoURL) {
@@ -66,14 +61,12 @@ async function run() {
       }
 
       try {
-        
         const existingUser = await userCollection.findOne({ email });
         if (existingUser) {
           return res.status(409).json({ error: "User already exists" });
         }
 
-        
-        const newUser = { name, email, password, photoURL };
+        const newUser = { name, email };
         const result = await userCollection.insertOne(newUser);
 
         res.status(201).json({
@@ -85,7 +78,6 @@ async function run() {
       }
     });
 
-    
     app.get('/users', async (req, res) => {
       try {
         const users = await userCollection.find().toArray();
@@ -99,6 +91,7 @@ async function run() {
     console.error("Error connecting to MongoDB:", error);
   }
 }
+
 run().catch(console.dir);
 
 app.get('/', (req, res) => {
