@@ -3,8 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
-const { MongoClient, ServerApiVersion } = require('mongodb');
-
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -27,11 +26,11 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    //await client.connect();
     console.log("Connected to MongoDB!");
 
     const database = client.db("JobPortal");
     const userCollection = database.collection("users");
+    const foodCollection = database.collection("foodItems");
 
     app.post('/jwt', (req, res) => {
       const user = req.body;
@@ -53,7 +52,6 @@ async function run() {
     });
 
     app.post('/users', async (req, res) => {
-      console.log("Received request body:", req.body);
       const { name, email, password, photoURL } = req.body;
 
       if (!name || !email || !password || !photoURL) {
@@ -78,6 +76,163 @@ async function run() {
       }
     });
 
+    app.post('/foods', async (req, res) => {
+      try {
+        const {
+          foodName,
+          foodImage,
+          foodCategory,
+          quantity,
+          price,
+          foodOrigin,
+          description,
+          addedBy
+        } = req.body;
+
+        if (!foodName || !foodImage || !foodCategory || !quantity || !price || !foodOrigin || !description || !addedBy) {
+          return res.status(400).json({ error: "All fields are required" });
+        }
+
+        const newFood = {
+          foodName,
+          foodImage,
+          foodCategory,
+          quantity: parseInt(quantity),
+          price: parseFloat(price),
+          foodOrigin,
+          description,
+          addedBy,
+          createdAt: new Date()
+        };
+
+        const result = await foodCollection.insertOne(newFood);
+
+        res.status(201).json({
+          message: "Food item added successfully",
+          foodId: result.insertedId
+        });
+      } catch (error) {
+        console.error("Error saving food item:", error);
+        res.status(500).json({ error: "Failed to add food item" });
+      }
+    });
+
+    // POST route to handle food purchases
+    app.post('/purchases', async (req, res) => {
+      const { foodName, price, quantity, buyerName, buyerEmail, buyingDate } = req.body;
+
+      
+      if (!foodName || !price || !quantity || !buyerName || !buyerEmail || !buyingDate) {
+        return res.status(400).json({ error: "All fields are required" });
+      }
+
+      try {
+        
+        const foodItem = await foodCollection.findOne({ foodName });
+
+        if (!foodItem) {
+          return res.status(404).json({ error: "Food item not found" });
+        }
+
+        
+        if (quantity > foodItem.quantity) {
+          return res.status(400).json({ error: "Not enough stock available" });
+        }
+
+        
+        const purchase = {
+          foodName,
+          price,
+          quantity,
+          buyerName,
+          buyerEmail,
+          buyingDate,
+          status: 'Pending', 
+        };
+
+        
+        const result = await database.collection("purchases").insertOne(purchase);
+
+        
+        const updatedQuantity = foodItem.quantity - quantity;
+        await foodCollection.updateOne({ foodName }, { $set: { quantity: updatedQuantity } });
+
+        res.status(201).json({
+          message: "Purchase successful",
+          purchaseId: result.insertedId
+        });
+      } catch (error) {
+        console.error("Error making the purchase:", error);
+        res.status(500).json({ error: "Failed to make the purchase" });
+      }
+    });
+
+    // GET route to fetch all purchases
+    app.get('/purchases', async (req, res) => {
+      try {
+        const purchases = await database.collection("purchases").find().toArray();
+        res.status(200).json(purchases);
+      } catch (error) {
+        console.error("Error fetching purchases:", error);
+        res.status(500).json({ error: "Failed to fetch purchases" });
+      }
+    });
+
+    // GET route to fetch a specific purchase by ID
+    app.get('/purchases/:id', async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const purchase = await database.collection("purchases").findOne({ _id: new ObjectId(id) });
+
+        if (!purchase) {
+          return res.status(404).json({ error: "Purchase not found" });
+        }
+
+        res.status(200).json(purchase);
+      } catch (error) {
+        console.error("Error fetching purchase by ID:", error);
+        res.status(500).json({ error: "Failed to fetch purchase" });
+      }
+    });
+
+
+
+
+
+    // GET route to fetch all food items
+    app.get('/foods', async (req, res) => {
+      try {
+        const foodItems = await foodCollection.find().toArray();
+        res.status(200).json(foodItems);
+      } catch (error) {
+        console.error("Error fetching food items:", error);
+        res.status(500).json({ error: "Failed to fetch food items" });
+      }
+    });
+    // GET route to fetch a single food item by its ID
+    const { ObjectId } = require('mongodb'); // Import ObjectId
+
+    // GET route to fetch a single food item by its ID
+    app.get('/foods/:id', async (req, res) => {
+      const { id } = req.params;
+
+      try {
+
+        const foodItem = await foodCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!foodItem) {
+          return res.status(404).json({ error: "Food item not found" });
+        }
+
+        res.status(200).json(foodItem);
+      } catch (error) {
+        console.error("Error fetching food item by ID:", error);
+        res.status(500).json({ error: "Failed to fetch food item" });
+      }
+    });
+
+
     app.get('/users', async (req, res) => {
       try {
         const users = await userCollection.find().toArray();
@@ -91,6 +246,7 @@ async function run() {
     console.error("Error connecting to MongoDB:", error);
   }
 }
+
 
 run().catch(console.dir);
 
