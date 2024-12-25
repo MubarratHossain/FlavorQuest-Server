@@ -121,25 +121,27 @@ async function run() {
     app.post('/purchases', async (req, res) => {
       const { foodName, price, quantity, buyerName, buyerEmail, buyingDate } = req.body;
 
-      
       if (!foodName || !price || !quantity || !buyerName || !buyerEmail || !buyingDate) {
         return res.status(400).json({ error: "All fields are required" });
       }
 
+      const session = client.startSession();
+
       try {
-        
-        const foodItem = await foodCollection.findOne({ foodName });
+        session.startTransaction();
+
+        const foodItem = await foodCollection.findOne({ foodName }, { session });
 
         if (!foodItem) {
+          await session.abortTransaction();
           return res.status(404).json({ error: "Food item not found" });
         }
 
-        
         if (quantity > foodItem.quantity) {
+          await session.abortTransaction();
           return res.status(400).json({ error: "Not enough stock available" });
         }
 
-        
         const purchase = {
           foodName,
           price,
@@ -147,25 +149,39 @@ async function run() {
           buyerName,
           buyerEmail,
           buyingDate,
-          status: 'Pending', 
+          status: 'Pending',
         };
 
-        
-        const result = await database.collection("purchases").insertOne(purchase);
+        // Insert the purchase record
+        const result = await database.collection("purchases").insertOne(purchase, { session });
 
-        
+        // Update food item quantity and purchase count
         const updatedQuantity = foodItem.quantity - quantity;
-        await foodCollection.updateOne({ foodName }, { $set: { quantity: updatedQuantity } });
+        const updatedPurchaseCount = (foodItem.purchaseCount || 0) + quantity;
+
+        await foodCollection.updateOne(
+          { foodName },
+          { $set: { quantity: updatedQuantity }, $inc: { purchaseCount: quantity } },
+          { session }
+        );
+
+        await session.commitTransaction();
 
         res.status(201).json({
           message: "Purchase successful",
-          purchaseId: result.insertedId
+          purchaseId: result.insertedId,
+          updatedQuantity,
+          updatedPurchaseCount,
         });
       } catch (error) {
         console.error("Error making the purchase:", error);
+        await session.abortTransaction();
         res.status(500).json({ error: "Failed to make the purchase" });
+      } finally {
+        session.endSession();
       }
     });
+
 
     // GET route to fetch all purchases
     app.get('/purchases', async (req, res) => {
@@ -210,8 +226,8 @@ async function run() {
         res.status(500).json({ error: "Failed to fetch food items" });
       }
     });
-    // GET route to fetch a single food item by its ID
-    const { ObjectId } = require('mongodb'); // Import ObjectId
+
+
 
     // GET route to fetch a single food item by its ID
     app.get('/foods/:id', async (req, res) => {
