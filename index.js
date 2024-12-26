@@ -7,12 +7,11 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
-}));
+app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
+
+
 
 const uri = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.6zv7z.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -23,6 +22,8 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+
 
 async function run() {
   try {
@@ -117,6 +118,53 @@ async function run() {
       }
     });
 
+    app.put('/foods/:id', async (req, res) => {
+      const { id } = req.params;
+      const {
+          foodName,
+          foodImage,
+          foodCategory,
+          quantity,
+          price,
+          foodOrigin,
+          description,
+      } = req.body;
+  
+      if (!foodName || !foodImage || !foodCategory || !quantity || !price || !foodOrigin || !description) {
+          return res.status(400).json({ error: "All fields are required" });
+      }
+  
+      try {
+          const updatedFood = {
+              foodName,
+              foodImage,
+              foodCategory,
+              quantity: parseInt(quantity),
+              price: parseFloat(price),
+              foodOrigin,
+              description,
+              updatedAt: new Date(),
+          };
+  
+          const result = await foodCollection.updateOne(
+              { _id: new ObjectId(id) },
+              { $set: updatedFood }
+          );
+  
+          if (result.modifiedCount === 0) {
+              return res.status(404).json({ error: "Food item not found or no changes made" });
+          }
+  
+          res.status(200).json({ message: "Food item updated successfully" });
+      } catch (error) {
+          console.error("Error updating food item:", error);
+          res.status(500).json({ error: "Failed to update food item" });
+      }
+  });
+  
+
+   
+
     // POST route to handle food purchases
     app.post('/purchases', async (req, res) => {
       const { foodName, price, quantity, buyerName, buyerEmail, buyingDate } = req.body;
@@ -183,7 +231,7 @@ async function run() {
     });
 
 
-    // GET route to fetch all purchases
+
     app.get('/purchases', async (req, res) => {
       try {
         const purchases = await database.collection("purchases").find().toArray();
@@ -194,7 +242,7 @@ async function run() {
       }
     });
 
-    // GET route to fetch a specific purchase by ID
+
     app.get('/purchases/:id', async (req, res) => {
       const { id } = req.params;
 
@@ -211,6 +259,25 @@ async function run() {
         res.status(500).json({ error: "Failed to fetch purchase" });
       }
     });
+
+    // DELETE route to delete a purchase by its ID
+app.delete('/purchases/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await database.collection("purchases").deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Purchase not found" });
+    }
+
+    res.status(200).json({ message: "Purchase deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting purchase:", error);
+    res.status(500).json({ error: "Failed to delete purchase" });
+  }
+});
+
 
 
 
