@@ -13,6 +13,7 @@ app.use(cookieParser());
 
 
 
+
 const uri = `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.6zv7z.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -165,7 +166,7 @@ async function run() {
 
    
 
-    // POST route to handle food purchases
+    
     app.post('/purchases', async (req, res) => {
       const { foodName, price, quantity, buyerName, buyerEmail, buyingDate } = req.body;
 
@@ -200,10 +201,10 @@ async function run() {
           status: 'Pending',
         };
 
-        // Insert the purchase record
+        
         const result = await database.collection("purchases").insertOne(purchase, { session });
 
-        // Update food item quantity and purchase count
+        
         const updatedQuantity = foodItem.quantity - quantity;
         const updatedPurchaseCount = (foodItem.purchaseCount || 0) + quantity;
 
@@ -260,7 +261,7 @@ async function run() {
       }
     });
 
-    // DELETE route to delete a purchase by its ID
+    
 app.delete('/purchases/:id', async (req, res) => {
   const { id } = req.params;
 
@@ -283,7 +284,7 @@ app.delete('/purchases/:id', async (req, res) => {
 
 
 
-    // GET route to fetch all food items
+    
     app.get('/foods', async (req, res) => {
       try {
         const foodItems = await foodCollection.find().toArray();
@@ -296,7 +297,7 @@ app.delete('/purchases/:id', async (req, res) => {
 
 
 
-    // GET route to fetch a single food item by its ID
+    
     app.get('/foods/:id', async (req, res) => {
       const { id } = req.params;
 
@@ -332,6 +333,25 @@ app.delete('/purchases/:id', async (req, res) => {
 
 
 run().catch(console.dir);
+
+app.get('/validate-token', (req, res) => {
+  const token = req.cookies.token; 
+  console.log('Received Token:', token); 
+
+  if (!token) {
+    return res.status(401).json({ isValid: false });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_TOKEN); 
+    console.log('Decoded Token:', decoded);
+    res.json({ isValid: true });
+  } catch (err) {
+    console.error("Token verification failed:", err);
+    res.status(401).json({ isValid: false });
+  }
+});
+
 
 app.get('/', (req, res) => {
   res.send('Backend Server is Running');
