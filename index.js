@@ -7,7 +7,18 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: ['http://localhost:5173',
+  'https://job-portal-20a59.web.app',
+  'https://zippy-sawine-1e9523.netlify.app',
+  'https://job-portal-20a59.firebaseapp.com',
+
+
+
+
+
+],
+
+ credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -40,7 +51,8 @@ async function run() {
 
       res.cookie('token', token, {
         httpOnly: true,
-        secure: false
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       }).send({ success: true });
     });
 
@@ -48,6 +60,8 @@ async function run() {
       res.clearCookie('token', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+
       });
 
       res.status(200).json({ success: true, message: 'Logged out successfully' });
